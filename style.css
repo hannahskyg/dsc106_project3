@@ -1,37 +1,95 @@
-body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
+       * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
         }
 
         header {
             text-align: center;
-            margin-bottom: 40px;
+            padding: 60px 40px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        header h1 {
+            font-size: 3em;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            letter-spacing: -1px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            color: #656e6e;
+            font-weight: 300;
         }
 
         section {
+            padding: 60px 80px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        section:nth-child(even) {
+            background-color: #ffffff;
+        }
+
+        section:nth-child(odd) {
+            background-color: #fafafa;
+        }
+
+        section h2 {
+            font-size: 1.8em;
+            color: #2c3e50;
             margin-bottom: 30px;
-            padding: 20px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            background-color: #f9f9f9;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
         }
 
         #viz {
             width: 100%;
-            height: 300px;
-            background-color: #ddd;
+            height: 500px;
+            background-color: #ecf0f1;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
-            color: #555;
-            border-radius: 6px;
+            font-weight: 500;
+            color: #95a5a6;
+            border-radius: 8px;
+            font-size: 1.1em;
         }
 
         .writeup {
-            background-color: #fff;
-            padding: 15px;
-            border-radius: 6px;
-            border: 1px solid #eee;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 4px solid #555;
+            max-width: 1200px;
+        }
+
+        .writeup p {
+            color: #555;
+            line-height: 1.8;
+            font-size: 1.05em;
+        }
+
+        @media (max-width: 768px) {
+            section {
+                padding: 40px 30px;
+            }
+
+            header {
+                padding: 40px 30px;
+            }
+
+            header h1 {
+                font-size: 2.2em;
+            }
         }

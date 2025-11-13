@@ -55,17 +55,11 @@
 
         #viz {
             width: 100%;
-            height: 500px;
-            background-color: #ecf0f1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 500;
-            color: #95a5a6;
+            min-height: 700px;  /* Use min-height instead of fixed height */
+            background-color: #ffffff;  /* Clean white background */
             border-radius: 8px;
-            font-size: 1.1em;
+            padding: 20px;  /* Add some padding around the map */
         }
-
         .writeup {
             background-color: rgba(255, 255, 255, 0.7);
             padding: 30px;

@@ -256,4 +256,18 @@ function visualizeYear(year) {
       svg.append("text")
         .attr("x", width / 2)
         .attr("y", height / 2)
-        .attr("te
+        .attr("text-anchor", "middle")
+        .style("fill", "red")
+        .style("font-size", "16px")
+        .text(`Error loading data for ${year}. Check console for details.`);
+    });
+}
+
+// Slider event
+slider.on("input", function () {
+  const year = +this.value;
+  visualizeYear(year);
+});
+
+// Initial render
+visualizeYear(1954);

@@ -1,7 +1,8 @@
 // global.js
 
 const width = 1300;
-const height = 700;
+// Taller SVG so we have a clean band for the legend under the map
+const height = 820;
 const dpr = window.devicePixelRatio || 1;
 
 // Create SVG element and append to #viz
@@ -10,9 +11,10 @@ const svg = d3.select("#viz")
   .attr("width", width)
   .attr("height", height);
 
+// Move the map up a bit, leaving room at the bottom for the legend
 const projection = d3.geoNaturalEarth1()
   .scale(width / 6.2)
-  .translate([width / 2, height / 2]);
+  .translate([width / 2, height / 2 - 60]);
 
 const path = d3.geoPath(projection);
 
@@ -56,7 +58,7 @@ function visualizeYear(year) {
   const dataPromise = d3.csv(`processed/pr_by_year/pr_${year}_win5.csv`);
   const worldPromise = worldData
     ? Promise.resolve(worldData)
-    : d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
+    : d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json`);
 
   Promise.all([dataPromise, worldPromise])
     .then(([data, world]) => {
@@ -72,9 +74,20 @@ function visualizeYear(year) {
       const uniqueLats = [...new Set(data.map(d => d.lat))].sort((a, b) => b - a);
       const uniqueLons = [...new Set(data.map(d => d.lon))].sort((a, b) => a - b);
 
+      // ---- Outlier handling: clamp values to 1st–99th percentile ----
+      const prValues = data
+        .map(d => d.pr)
+        .filter(v => Number.isFinite(v))
+        .sort(d3.ascending);
+
+      const lo = d3.quantile(prValues, 0.01);
+      const hi = d3.quantile(prValues, 0.99);
+
+      // Map from (lat,lon) to CLAMPED value
       const dataMap = new Map();
       data.forEach(d => {
-        dataMap.set(`${d.lat},${d.lon}`, d.pr);
+        const v = Math.max(lo, Math.min(hi, d.pr)); // clamp outliers
+        dataMap.set(`${d.lat},${d.lon}`, v);
       });
 
       const grid = uniqueLats.map(lat =>
@@ -84,8 +97,9 @@ function visualizeYear(year) {
         })
       );
 
+      // Color scale uses the clamped range
       const scale = d3.scaleSequential(d3.interpolateTurbo)
-        .domain(d3.extent(data, d => d.pr));
+        .domain([lo, hi]);
 
       // ----- Hi-DPI canvas for crisp image -----
       const canvas = document.createElement("canvas");
@@ -147,18 +161,18 @@ function visualizeYear(year) {
       // title
       svg.append("text")
         .attr("x", width / 2)
-        .attr("y", 40)
+        .attr("y", 50)
         .attr("text-anchor", "middle")
         .attr("font-size", "24px")
         .attr("font-weight", "bold")
         .attr("fill", "#333")
         .text(`Global Precipitation (5-year window ending ${year})`);
 
-      // ----- Legend (centered under the map) -----
+      // ----- Legend (now in a clear band under the map) -----
       const legendWidth = 320;
       const legendHeight = 16;
       const legendX = (width - legendWidth) / 2;
-      const legendY = height - 50;
+      const legendY = height - 80;   // lower than before, in white space
 
       const defs = svg.append("defs");
       const linearGradient = defs.append("linearGradient")
@@ -166,11 +180,10 @@ function visualizeYear(year) {
         .attr("x1", "0%")
         .attr("x2", "100%");
 
-      const [minVal, maxVal] = scale.domain();
       const numStops = 10;
       for (let i = 0; i <= numStops; i++) {
         const t = i / numStops;
-        const value = minVal + t * (maxVal - minVal);
+        const value = lo + t * (hi - lo);
         linearGradient.append("stop")
           .attr("offset", `${t * 100}%`)
           .attr("stop-color", scale(value));
@@ -191,7 +204,7 @@ function visualizeYear(year) {
         .attr("y", legendY - 6)
         .attr("font-size", 12)
         .attr("fill", "#333")
-        .text(`${minVal.toFixed(1)} mm`);
+        .text(`${lo.toFixed(1)} mm`);
 
       svg.append("text")
         .attr("x", legendX + legendWidth)
@@ -199,7 +212,7 @@ function visualizeYear(year) {
         .attr("text-anchor", "end")
         .attr("font-size", 12)
         .attr("fill", "#333")
-        .text(`${maxVal.toFixed(1)} mm`);
+        .text(`${hi.toFixed(1)} mm`);
 
       svg.append("text")
         .attr("x", legendX + legendWidth / 2)

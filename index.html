@@ -24,14 +24,18 @@
     <section id="rationale">
         <h2>Design Rationale</h2>
         <div class="writeup">
-            <p>Explain why you chose this particular visual encoding and interaction techniques. Discuss alternatives you considered and how you decided on your final design.</p>
+            <p>As a group, we decided to create our interactive visualization utilizing the CMIP6 dataset on global climate. First, we chose to graph our data on a global map by color-coding the map based on the total precipitation. However, instead of just taking the average for all years on each position (latitude and longitude), we decided to add a slider that filters the years. This slider filters out the averages for the past 5 years, starting from the selected year, and updates the map (color-coding). Although we have the color-coding for the chosen time frame, our audience would not be able to gain much information. Because of this, we included the hovering interaction technique. This technique enables the audience to view the selected time frame in years, location (including latitude and longitude coordinates), and total precipitation (in millimeters).
+</p>
         </div>
     </section>
 
     <section id="development">
         <h2>Development Process</h2>
         <div class="writeup">
-            <p>Describe how the work was split among team members, time spent, challenges faced, and any lessons learned during development.</p>
+            <p>Our group started by exploring the CMIP6 dataset from NOAA’s public Google Cloud repository. For the checkpoint, each member made a static graph with a different variable: rainfall (Hannah), snowfall and mean water (Janie), temperature (Edwards), and wind speed (Junran). This helped us understand the dataset and decide what would work best for the final project. We chose precipitation because it showed clear global patterns and made the most sense for an interactive visualization.
+For the final graph, we discussed the design together. Hannah and Edwards mainly worked on combining the data and creating the interactive D3 visualization, while Janie and Junran focused more on the write-up and the website layout. Each team member spent around 6 hours total, including meetings.
+The most time-consuming parts were generating the interactive map and handling the large climate grids. Each year contained thousands of latitude–longitude cells, and drawing everything in SVG caused lag, so we switched to using a canvas for better performance. Another challenge was making the time slider work correctly with the 5-year rolling average dataset, since we had to make sure every slider position loaded the correct file.
+</p>
         </div>
     </section>
 

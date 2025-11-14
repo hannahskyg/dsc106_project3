@@ -1,5 +1,8 @@
+// global.js
+
 const width = 1300;
 const height = 700;
+const dpr = window.devicePixelRatio || 1;
 
 // Create SVG element and append to #viz
 const svg = d3.select("#viz")
@@ -7,13 +10,16 @@ const svg = d3.select("#viz")
   .attr("width", width)
   .attr("height", height);
 
+// Leave some room at the bottom for legend (map sits in [0, height-80])
+const mapHeight = height - 80;
+
 const projection = d3.geoNaturalEarth1()
   .scale(width / 6.2)
-  .translate([width / 2, height / 2]);
+  .translate([width / 2, mapHeight / 2 + 20]); // shift map slightly down from top
 
 const path = d3.geoPath(projection);
 
-// Create slider container
+// ----- Slider UI -----
 const sliderContainer = d3.select("#viz")
   .insert("div", "svg")
   .style("text-align", "center")
@@ -40,45 +46,119 @@ const slider = sliderContainer.append("input")
   .style("width", "500px")
   .style("vertical-align", "middle");
 
-// Store world data globally to avoid reloading
+// ----- Globals so we can REUSE elements (no flashing) -----
 let worldData = null;
+let rasterImage = null;
+let countriesPath = null;
+let titleText = null;
+let legendGroup = null;
+let legendGradient = null;
 
-// Function to load and visualize data for a specific year
+// ----- Legend helper -----
+function updateLegend(scale) {
+  const legendWidth = 320;
+  const legendHeight = 16;
+  const legendX = (width - legendWidth) / 2;
+  const legendY = height - 50;  // clearly below the map area
+
+  if (!legendGroup) {
+    // defs + gradient
+    const defs = svg.append("defs");
+    legendGradient = defs.append("linearGradient")
+      .attr("id", "legend-gradient")
+      .attr("x1", "0%")
+      .attr("x2", "100%");
+
+    legendGroup = svg.append("g")
+      .attr("class", "legend")
+      .attr("transform", `translate(${legendX},${legendY})`);
+
+    // color bar
+    legendGroup.append("rect")
+      .attr("class", "legend-bar")
+      .attr("width", legendWidth)
+      .attr("height", legendHeight)
+      .attr("rx", 3)
+      .style("fill", "url(#legend-gradient)")
+      .style("stroke", "#333")
+      .style("stroke-width", 1);
+
+    // min / max text
+    legendGroup.append("text")
+      .attr("class", "legend-min")
+      .attr("x", 0)
+      .attr("y", -6)
+      .attr("font-size", 12)
+      .attr("fill", "#333")
+      .text("");
+
+    legendGroup.append("text")
+      .attr("class", "legend-max")
+      .attr("x", legendWidth)
+      .attr("y", -6)
+      .attr("text-anchor", "end")
+      .attr("font-size", 12)
+      .attr("fill", "#333")
+      .text("");
+
+    // title under bar (so it never overlaps map)
+    legendGroup.append("text")
+      .attr("class", "legend-title")
+      .attr("x", legendWidth / 2)
+      .attr("y", legendHeight + 18)
+      .attr("text-anchor", "middle")
+      .attr("font-size", 13)
+      .attr("font-weight", "bold")
+      .attr("fill", "#333")
+      .text("Total Precipitation (mm)");
+  }
+
+  // update gradient stops + labels each year
+  legendGradient.selectAll("stop").remove();
+
+  const [minVal, maxVal] = scale.domain();
+  const numStops = 10;
+  for (let i = 0; i <= numStops; i++) {
+    const t = i / numStops;
+    const value = minVal + t * (maxVal - minVal);
+    legendGradient.append("stop")
+      .attr("offset", `${t * 100}%`)
+      .attr("stop-color", scale(value));
+  }
+
+  legendGroup.select(".legend-min").text(`${minVal.toFixed(1)} mm`);
+  legendGroup.select(".legend-max").text(`${maxVal.toFixed(1)} mm`);
+}
+
+// ----- Main visualization function -----
 function visualizeYear(year) {
   yearDisplay.text(year);
-  
-  // Clear existing visualization
-  svg.selectAll("*").remove();
-  
+
   const dataPromise = d3.csv(`processed/pr_by_year/pr_${year}_win5.csv`);
-  const worldPromise = worldData 
+  const worldPromise = worldData
     ? Promise.resolve(worldData)
     : d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
-  
+
   Promise.all([dataPromise, worldPromise])
     .then(([data, world]) => {
-      // Store world data for reuse
       if (!worldData) worldData = world;
-      
-      console.log(`Data loaded for ${year}:`, data.length, "rows");
 
-      // Normalize longitude and convert types
+      // convert + normalize lon/lat
       data.forEach(d => {
         d.lon = ((+d.lon + 180) % 360) - 180;
         d.lat = +d.lat;
         d.pr = +d.pr_total_mm;
       });
 
-      // OPTIMIZATION 1: Use a Map for O(1) lookups instead of array.find()
+      const uniqueLats = [...new Set(data.map(d => d.lat))].sort((a, b) => b - a);
+      const uniqueLons = [...new Set(data.map(d => d.lon))].sort((a, b) => a - b);
+
+      // O(1) lookup map
       const dataMap = new Map();
       data.forEach(d => {
         dataMap.set(`${d.lat},${d.lon}`, d.pr);
       });
 
-      const uniqueLats = [...new Set(data.map(d => d.lat))].sort((a,b)=>b-a);
-      const uniqueLons = [...new Set(data.map(d => d.lon))].sort((a,b)=>a-b);
-
-      // OPTIMIZATION 2: Build grid using Map lookup
       const grid = uniqueLats.map(lat =>
         uniqueLons.map(lon => {
           const val = dataMap.get(`${lat},${lon}`);
@@ -89,15 +169,16 @@ function visualizeYear(year) {
       const scale = d3.scaleSequential(d3.interpolateTurbo)
         .domain(d3.extent(data, d => d.pr));
 
+      // Hi-DPI canvas for crisp image
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = width * dpr;
+      canvas.height = mapHeight * dpr;
+      ctx.scale(dpr, dpr);
 
       ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, width, mapHeight);
 
-      // OPTIMIZATION 3: Batch canvas operations and pre-compute colors
       const rectangles = [];
       for (let i = 0; i < uniqueLats.length; i++) {
         for (let j = 0; j < uniqueLons.length; j++) {
@@ -109,7 +190,7 @@ function visualizeYear(year) {
 
           const [x, y] = projected;
           const color = scale(val);
-          
+
           rectangles.push({
             x: Math.floor(x),
             y: Math.floor(y),
@@ -118,113 +199,61 @@ function visualizeYear(year) {
         }
       }
 
-      // OPTIMIZATION 4: Draw all rectangles in a single pass
+      const cellSize = 11; // adjust if you change data resolution
       rectangles.forEach(rect => {
         ctx.fillStyle = rect.color;
-        ctx.fillRect(rect.x, rect.y, 11, 11);
+        ctx.fillRect(rect.x, rect.y, cellSize, cellSize);
       });
 
-      // OPTIMIZATION 5: Use requestAnimationFrame for smooth rendering
-      requestAnimationFrame(() => {
-        svg.append("image")
-          .attr("href", canvas.toDataURL())
-          .attr("width", width)
-          .attr("height", height);
+      const dataURL = canvas.toDataURL();
 
-        svg.append("path")
-          .datum(topojson.feature(world, world.objects.countries))
+      // ----- SMOOTH UPDATE: reuse elements instead of clearing SVG -----
+
+      // 1. raster image (heatmap)
+      if (!rasterImage) {
+        rasterImage = svg.append("image")
+          .attr("x", 0)
+          .attr("y", 40)         // little top margin
+          .attr("width", width)
+          .attr("height", mapHeight - 40)
+          .attr("opacity", 0);
+      }
+
+      rasterImage
+        .transition()
+        .duration(600)
+        .attr("href", dataURL)
+        .attr("opacity", 1);
+
+      // 2. country outlines (draw once, above raster)
+      if (!countriesPath) {
+        countriesPath = svg.append("path")
+          .datum(topojson.feature(worldData, worldData.objects.countries))
           .attr("d", path)
+          .attr("transform", "translate(0,40)") // align with image y offset
           .attr("fill", "none")
           .attr("stroke", "#111")
           .attr("stroke-width", 0.4);
+      }
 
-        // Add title
-        svg.append("text")
+      // 3. title (update text only)
+      if (!titleText) {
+        titleText = svg.append("text")
           .attr("x", width / 2)
-          .attr("y", 30)
+          .attr("y", 28)
           .attr("text-anchor", "middle")
-          .attr("font-size", "24px")
+          .attr("font-size", 24)
           .attr("font-weight", "bold")
-          .attr("fill", "#333")
-          .text(`Global Precipitation - ${year} (mm)`);
+          .attr("fill", "#333");
+      }
+      titleText.text(`Global Precipitation (5-year window ending ${year})`);
 
-        // Create color legend
-        const legendWidth = 300;
-        const legendHeight = 15;
-        const legendX = width - legendWidth - 50;
-        const legendY = height - 30;
-
-        const defs = svg.append("defs");
-        const linearGradient = defs.append("linearGradient")
-          .attr("id", "legend-gradient")
-          .attr("x1", "0%")
-          .attr("x2", "100%");
-
-        const numStops = 10;
-        for (let i = 0; i <= numStops; i++) {
-          const offset = (i / numStops) * 100;
-          const value = scale.domain()[0] + (i / numStops) * (scale.domain()[1] - scale.domain()[0]);
-          linearGradient.append("stop")
-            .attr("offset", `${offset}%`)
-            .attr("stop-color", scale(value));
-        }
-
-        svg.append("rect")
-          .attr("x", legendX)
-          .attr("y", legendY)
-          .attr("width", legendWidth)
-          .attr("height", legendHeight)
-          .style("fill", "url(#legend-gradient)")
-          .style("stroke", "#333")
-          .style("stroke-width", 1);
-
-        const [minVal, maxVal] = scale.domain();
-        
-        svg.append("text")
-          .attr("x", legendX)
-          .attr("y", legendY - 5)
-          .attr("font-size", "12px")
-          .attr("fill", "#333")
-          .text(`${minVal.toFixed(1)} mm`);
-
-        svg.append("text")
-          .attr("x", legendX + legendWidth)
-          .attr("y", legendY - 5)
-          .attr("text-anchor", "end")
-          .attr("font-size", "12px")
-          .attr("fill", "#333")
-          .text(`${maxVal.toFixed(1)} mm`);
-
-        svg.append("text")
-          .attr("x", legendX + legendWidth / 2)
-          .attr("y", legendY + legendHeight + 15)
-          .attr("text-anchor", "middle")
-          .attr("font-size", "13px")
-          .attr("font-weight", "bold")
-          .attr("fill", "#333")
-          .text("Total Precipitation");
-
-        console.log(`Visualization complete for ${year}!`);
-      });
-
+      // 4. legend (separate band under map)
+      updateLegend(scale);
     })
     .catch(error => {
       console.error(`Error loading data for ${year}:`, error);
       svg.append("text")
         .attr("x", width / 2)
         .attr("y", height / 2)
-        .attr("text-anchor", "middle")
-        .style("fill", "red")
-        .style("font-size", "16px")
-        .text(`Error loading data for ${year}. Check console for details.`);
-    });
-}
-
-// Event listener for slider
-slider.on("input", function() {
-  const year = +this.value;
-  visualizeYear(year);
-});
-
-// Initialize with 1954
-visualizeYear(1954);
+        .attr("te

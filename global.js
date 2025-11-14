@@ -198,9 +198,13 @@ function visualizeYear(year) {
             .attr("stroke-width", 2);
           
           const originalPr = originalDataMap.get(`${d.lat},${d.lon}`);
+          const startYear = year - 4;
+          const endYear = year;
           tooltip
             .style("visibility", "visible")
             .html(`
+              <strong>Period:</strong> ${startYear}-${endYear}<br/>
+              <br/>
               <strong>Location:</strong><br/>
               Latitude: ${d.lat.toFixed(2)}°<br/>
               Longitude: ${d.lon.toFixed(2)}°<br/>

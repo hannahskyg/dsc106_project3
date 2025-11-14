@@ -58,7 +58,7 @@ function visualizeYear(year) {
   const dataPromise = d3.csv(`processed/pr_by_year/pr_${year}_win5.csv`);
   const worldPromise = worldData
     ? Promise.resolve(worldData)
-    : d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json`);
+    : d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
 
   Promise.all([dataPromise, worldPromise])
     .then(([data, world]) => {

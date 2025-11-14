@@ -1,7 +1,6 @@
 // global.js
 
 const width = 1300;
-// Taller SVG so we have a clean band for the legend under the map
 const height = 820;
 const dpr = window.devicePixelRatio || 1;
 
@@ -17,6 +16,20 @@ const projection = d3.geoNaturalEarth1()
   .translate([width / 2, height / 2 - 60]);
 
 const path = d3.geoPath(projection);
+
+// Create tooltip div (hidden by default)
+const tooltip = d3.select("body")
+  .append("div")
+  .attr("id", "precipitation-tooltip")
+  .style("position", "absolute")
+  .style("visibility", "hidden")
+  .style("background-color", "rgba(0, 0, 0, 0.85)")
+  .style("color", "white")
+  .style("padding", "10px")
+  .style("border-radius", "5px")
+  .style("font-size", "14px")
+  .style("pointer-events", "none")
+  .style("z-index", "1000");
 
 // ----- Slider UI -----
 const sliderContainer = d3.select("#viz")
@@ -83,11 +96,13 @@ function visualizeYear(year) {
       const lo = d3.quantile(prValues, 0.01);
       const hi = d3.quantile(prValues, 0.99);
 
-      // Map from (lat,lon) to CLAMPED value
+      // Map from (lat,lon) to CLAMPED value and store original
       const dataMap = new Map();
+      const originalDataMap = new Map();
       data.forEach(d => {
         const v = Math.max(lo, Math.min(hi, d.pr)); // clamp outliers
         dataMap.set(`${d.lat},${d.lon}`, v);
+        originalDataMap.set(`${d.lat},${d.lon}`, d.pr); // store original unclamped value
       });
 
       const grid = uniqueLats.map(lat =>
@@ -158,6 +173,54 @@ function visualizeYear(year) {
         .attr("stroke", "#111")
         .attr("stroke-width", 0.4);
 
+      // Add invisible circles for hover interaction
+      const hoverGroup = svg.append("g").attr("class", "hover-points");
+      
+      hoverGroup.selectAll("circle")
+        .data(data)
+        .join("circle")
+        .attr("cx", d => {
+          const proj = projection([d.lon, d.lat]);
+          return proj ? proj[0] : -1000;
+        })
+        .attr("cy", d => {
+          const proj = projection([d.lon, d.lat]);
+          return proj ? proj[1] : -1000;
+        })
+        .attr("r", cellSize / 2)
+        .attr("fill", "transparent")
+        .attr("pointer-events", "all")
+        .style("cursor", "pointer")
+        .on("mouseenter", function(event, d) {
+          d3.select(this)
+            .attr("fill", "rgba(255, 255, 255, 0.3)")
+            .attr("stroke", "white")
+            .attr("stroke-width", 2);
+          
+          const originalPr = originalDataMap.get(`${d.lat},${d.lon}`);
+          tooltip
+            .style("visibility", "visible")
+            .html(`
+              <strong>Location:</strong><br/>
+              Latitude: ${d.lat.toFixed(2)}°<br/>
+              Longitude: ${d.lon.toFixed(2)}°<br/>
+              <br/>
+              <strong>Precipitation:</strong> ${originalPr.toFixed(2)} mm
+            `);
+        })
+        .on("mousemove", function(event) {
+          tooltip
+            .style("top", (event.pageY - 10) + "px")
+            .style("left", (event.pageX + 10) + "px");
+        })
+        .on("mouseleave", function() {
+          d3.select(this)
+            .attr("fill", "transparent")
+            .attr("stroke", "none");
+          
+          tooltip.style("visibility", "hidden");
+        });
+
       // title
       svg.append("text")
         .attr("x", width / 2)
@@ -172,7 +235,7 @@ function visualizeYear(year) {
       const legendWidth = 320;
       const legendHeight = 16;
       const legendX = (width - legendWidth) / 2;
-      const legendY = height - 80;   // lower than before, in white space
+      const legendY = height - 80;
 
       const defs = svg.append("defs");
       const linearGradient = defs.append("linearGradient")

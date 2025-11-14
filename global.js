@@ -4,18 +4,19 @@ const width = 1300;
 const height = 700;
 const dpr = window.devicePixelRatio || 1;
 
+// map area (top margin so title has room, bottom margin for legend)
+const mapY = 50;
+const mapHeight = height - 120; // from mapY down to ~height-70
+
 // Create SVG element and append to #viz
 const svg = d3.select("#viz")
   .append("svg")
   .attr("width", width)
   .attr("height", height);
 
-// Leave some room at the bottom for legend (map sits in [0, height-80])
-const mapHeight = height - 80;
-
 const projection = d3.geoNaturalEarth1()
   .scale(width / 6.2)
-  .translate([width / 2, mapHeight / 2 + 20]); // shift map slightly down from top
+  .translate([width / 2, mapY + mapHeight / 2]); // center of the map band
 
 const path = d3.geoPath(projection);
 
@@ -59,10 +60,9 @@ function updateLegend(scale) {
   const legendWidth = 320;
   const legendHeight = 16;
   const legendX = (width - legendWidth) / 2;
-  const legendY = height - 50;  // clearly below the map area
+  const legendY = height - 50;  // clearly below map area
 
   if (!legendGroup) {
-    // defs + gradient
     const defs = svg.append("defs");
     legendGradient = defs.append("linearGradient")
       .attr("id", "legend-gradient")
@@ -73,7 +73,6 @@ function updateLegend(scale) {
       .attr("class", "legend")
       .attr("transform", `translate(${legendX},${legendY})`);
 
-    // color bar
     legendGroup.append("rect")
       .attr("class", "legend-bar")
       .attr("width", legendWidth)
@@ -83,14 +82,12 @@ function updateLegend(scale) {
       .style("stroke", "#333")
       .style("stroke-width", 1);
 
-    // min / max text
     legendGroup.append("text")
       .attr("class", "legend-min")
       .attr("x", 0)
       .attr("y", -6)
       .attr("font-size", 12)
-      .attr("fill", "#333")
-      .text("");
+      .attr("fill", "#333");
 
     legendGroup.append("text")
       .attr("class", "legend-max")
@@ -98,10 +95,8 @@ function updateLegend(scale) {
       .attr("y", -6)
       .attr("text-anchor", "end")
       .attr("font-size", 12)
-      .attr("fill", "#333")
-      .text("");
+      .attr("fill", "#333");
 
-    // title under bar (so it never overlaps map)
     legendGroup.append("text")
       .attr("class", "legend-title")
       .attr("x", legendWidth / 2)
@@ -113,7 +108,6 @@ function updateLegend(scale) {
       .text("Total Precipitation (mm)");
   }
 
-  // update gradient stops + labels each year
   legendGradient.selectAll("stop").remove();
 
   const [minVal, maxVal] = scale.domain();
@@ -153,7 +147,6 @@ function visualizeYear(year) {
       const uniqueLats = [...new Set(data.map(d => d.lat))].sort((a, b) => b - a);
       const uniqueLons = [...new Set(data.map(d => d.lon))].sort((a, b) => a - b);
 
-      // O(1) lookup map
       const dataMap = new Map();
       data.forEach(d => {
         dataMap.set(`${d.lat},${d.lon}`, d.pr);
@@ -199,23 +192,22 @@ function visualizeYear(year) {
         }
       }
 
-      const cellSize = 11; // adjust if you change data resolution
+      const cellSize = 11;
       rectangles.forEach(rect => {
         ctx.fillStyle = rect.color;
-        ctx.fillRect(rect.x, rect.y, cellSize, cellSize);
+        ctx.fillRect(rect.x, rect.y - mapY, cellSize, cellSize);
+        // subtract mapY so (0,0) in canvas corresponds to top of map band
       });
 
       const dataURL = canvas.toDataURL();
 
       // ----- SMOOTH UPDATE: reuse elements instead of clearing SVG -----
-
-      // 1. raster image (heatmap)
       if (!rasterImage) {
         rasterImage = svg.append("image")
           .attr("x", 0)
-          .attr("y", 40)         // little top margin
+          .attr("y", mapY)
           .attr("width", width)
-          .attr("height", mapHeight - 40)
+          .attr("height", mapHeight)
           .attr("opacity", 0);
       }
 
@@ -225,22 +217,19 @@ function visualizeYear(year) {
         .attr("href", dataURL)
         .attr("opacity", 1);
 
-      // 2. country outlines (draw once, above raster)
       if (!countriesPath) {
         countriesPath = svg.append("path")
           .datum(topojson.feature(worldData, worldData.objects.countries))
           .attr("d", path)
-          .attr("transform", "translate(0,40)") // align with image y offset
           .attr("fill", "none")
           .attr("stroke", "#111")
           .attr("stroke-width", 0.4);
       }
 
-      // 3. title (update text only)
       if (!titleText) {
         titleText = svg.append("text")
           .attr("x", width / 2)
-          .attr("y", 28)
+          .attr("y", 30)
           .attr("text-anchor", "middle")
           .attr("font-size", 24)
           .attr("font-weight", "bold")
@@ -248,7 +237,6 @@ function visualizeYear(year) {
       }
       titleText.text(`Global Precipitation (5-year window ending ${year})`);
 
-      // 4. legend (separate band under map)
       updateLegend(scale);
     })
     .catch(error => {
